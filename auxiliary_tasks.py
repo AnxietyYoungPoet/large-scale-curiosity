@@ -172,10 +172,10 @@ class JustPixels(FeatureExtractor):
 
 class IBFeature(FeatureExtractor):
     def __init__(self, policy, features_shared_with_policy, feat_dim=None, layernormalize=None, beta=0.2, scope='IB_feature'):
+        self.beta = beta
         super(IBFeature, self).__init__(scope=scope, policy=policy,
                                         features_shared_with_policy=features_shared_with_policy,
                                         feat_dim=feat_dim, layernormalize=layernormalize)
-        self.beta = beta
         self.features = tf.split(self.features, 2, -1)[0]
         self.next_features = tf.split(self.next_features, 2, -1)[0]
 
@@ -200,10 +200,13 @@ class IBFeature(FeatureExtractor):
             f_sample = f_mean + tf.exp(f_logvar / 2) * eps
             next_f_sample = next_f_mean + tf.exp(next_f_logvar / 2) * eps
             kl_loss = self.beta * tf.reduce_sum(tf.exp(f_logvar) + f_mean**2 - 1. - f_logvar, [-1])
-            f_sample = flatten_two_dims(f_sample)
+            print(kl_loss.shape)
             a = tf.one_hot(self.ac, self.ac_space.n, axis=2)
-            x = tf.concat([self.f_sample, a], 2)
+            x = tf.concat([f_sample, a], 2)
+            sh = tf.shape(x)
+            x = flatten_two_dims(x)
             x = fc(x, units=self.policy.hidsize, activation=activ)
             x = fc(x, units=self.feat_dim, activation=None)
-            dynamic_loss = tf.reduce_mean((x - tf.stop_gradient(next_f_sample) ** 2, -1))
+            x = unflatten_first_dim(x, sh)
+            dynamic_loss = tf.reduce_mean((x - tf.stop_gradient(next_f_sample)) ** 2, -1)
             return kl_loss + dynamic_loss
