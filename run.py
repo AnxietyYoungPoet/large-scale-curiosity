@@ -162,7 +162,7 @@ def get_experiment_environment(**args):
     set_global_seeds(process_seed)
     setup_mpi_gpus()
 
-    logger_context = logger.scoped_configure(dir=None,
+    logger_context = logger.scoped_configure(dir=args['log_dir'] + args['exp_name'],
                                              format_strs=['stdout', 'log',
                                                           'csv'] if MPI.COMM_WORLD.Get_rank() == 0 else ['log'])
     tf_context = setup_tensorflow_session()
@@ -194,6 +194,7 @@ def add_rollout_params(parser):
     parser.add_argument('--nsegs_per_env', type=int, default=1)
     parser.add_argument('--envs_per_process', type=int, default=128)
     parser.add_argument('--nlumps', type=int, default=1)
+    parser.add_argument('--log_dir', type=str, default='data/')
 
 
 if __name__ == '__main__':
