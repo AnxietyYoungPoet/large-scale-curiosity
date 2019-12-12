@@ -63,7 +63,9 @@ class Rollout(object):
         self.buf_rews[:] = self.reward_fun(int_rew=int_rew, ext_rew=self.buf_ext_rews)
 
     def rollout_step(self):
+        # t: steps total
         t = self.step_count % self.nsteps
+        # segment index
         s = t % self.nsteps_per_seg
         for l in range(self.nlumps):
             obs, prevrews, news, infos = self.env_get(l)

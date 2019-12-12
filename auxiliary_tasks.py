@@ -3,6 +3,7 @@ import tensorflow as tf
 from utils import small_convnet, fc, activ, flatten_two_dims, unflatten_first_dim, small_deconvnet
 
 
+# a randomly initialized CNN to embed features
 class FeatureExtractor(object):
     def __init__(self, policy, features_shared_with_policy, feat_dim=None, layernormalize=None,
                  scope='feature_extractor'):
@@ -14,12 +15,16 @@ class FeatureExtractor(object):
         self.hidsize = policy.hidsize
         self.ob_space = policy.ob_space
         self.ac_space = policy.ac_space
+        # obs: [None, None, h, w, c]
         self.obs = self.policy.ph_ob
         self.ob_mean = self.policy.ob_mean
         self.ob_std = self.policy.ob_std
         with tf.variable_scope(scope):
+            # last_ob: [None, 1, h, w, c]
             self.last_ob = tf.placeholder(dtype=tf.int32,
                                           shape=(None, 1) + self.ob_space.shape, name='last_ob')
+            # next_ob: [None, None, h, w, c]
+            # next_ob is the succesive obs of self.obs
             self.next_ob = tf.concat([self.obs[:, 1:], self.last_ob], 1)
 
             if features_shared_with_policy:
@@ -60,6 +65,7 @@ class InverseDynamics(FeatureExtractor):
 
     def get_loss(self):
         with tf.variable_scope(self.scope):
+            # x: [None, None, feat_dim * 2]
             x = tf.concat([self.features, self.next_features], 2)
             sh = tf.shape(x)
             x = flatten_two_dims(x)
@@ -96,6 +102,7 @@ class VAE(FeatureExtractor):
     def get_loss(self):
         with tf.variable_scope(self.scope):
             posterior_mean, posterior_scale = tf.split(self.features, 2, -1)
+            # softplus = log(exp(x) + 1) > 0
             posterior_scale = tf.nn.softplus(posterior_scale)
             posterior_distribution = tf.distributions.Normal(loc=posterior_mean, scale=posterior_scale)
 

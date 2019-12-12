@@ -30,10 +30,14 @@ class PpoOptimizer(object):
             self.scope = scope
             self.ob_space = ob_space
             self.ac_space = ac_space
+            # stochastic policy
             self.stochpol = stochpol
             self.nepochs = nepochs
             self.lr = lr
             self.cliprange = cliprange
+            # rollout params
+            # nsteps_per_seg: number of steps in a segment
+            # nsegs_per_env: number of segments per env
             self.nsteps_per_seg = nsteps_per_seg
             self.nsegs_per_env = nsegs_per_env
             self.nminibatches = nminibatches
@@ -56,6 +60,7 @@ class PpoOptimizer(object):
             vpred = self.stochpol.vpred
 
             vf_loss = 0.5 * tf.reduce_mean((vpred - self.ph_ret) ** 2)
+            # negtive log
             ratio = tf.exp(self.ph_oldnlp - neglogpac)  # p_new / p_old
             negadv = - self.ph_adv
             pg_losses1 = negadv * ratio

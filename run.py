@@ -24,6 +24,8 @@ from wrappers import MontezumaInfoWrapper, make_mario_env, make_robo_pong, make_
 
 
 def start_experiment(**args):
+    # make_env with param rank, but all the other params are dummy params
+    # make_env(rank) returns an env
     make_env = partial(make_env_all_params, add_monitor=True, args=args)
 
     trainer = Trainer(make_env=make_env,
@@ -37,11 +39,16 @@ def start_experiment(**args):
 
 
 class Trainer(object):
+    # make_env: make_env(*args) returns an env
+    # hps: hyperparams
+    # num_timsteps: total_steps to run
     def __init__(self, make_env, hps, num_timesteps, envs_per_process):
         self.make_env = make_env
         self.hps = hps
         self.envs_per_process = envs_per_process
         self.num_timesteps = num_timesteps
+        # run some random episodes to get ob_mean and ob_std
+        # and return multi-envs
         self._set_env_vars()
 
         self.policy = CnnPolicy(
@@ -103,6 +110,7 @@ class Trainer(object):
         self.ob_space, self.ac_space = env.observation_space, env.action_space
         self.ob_mean, self.ob_std = random_agent_ob_mean_std(env)
         del env
+        # self.envs[0]() returns an env
         self.envs = [functools.partial(self.make_env, i) for i in range(self.envs_per_process)]
 
     def train(self):
