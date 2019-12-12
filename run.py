@@ -14,7 +14,7 @@ from baselines.bench import Monitor
 from baselines.common.atari_wrappers import NoopResetEnv, FrameStack
 from mpi4py import MPI
 
-from auxiliary_tasks import FeatureExtractor, InverseDynamics, VAE, JustPixels
+from auxiliary_tasks import FeatureExtractor, InverseDynamics, VAE, JustPixels, IBFeature
 from cnn_policy import CnnPolicy
 from cppo_agent import PpoOptimizer
 from dynamics import Dynamics, UNet
@@ -66,7 +66,8 @@ class Trainer(object):
                                   "idf": InverseDynamics,
                                   "vaesph": partial(VAE, spherical_obs=True),
                                   "vaenonsph": partial(VAE, spherical_obs=False),
-                                  "pix2pix": JustPixels}[hps['feat_learning']]
+                                  "pix2pix": JustPixels,
+                                  "ibfeature": IBFeature}[hps['feat_learning']]
         self.feature_extractor = self.feature_extractor(policy=self.policy,
                                                         features_shared_with_policy=False,
                                                         feat_dim=512,

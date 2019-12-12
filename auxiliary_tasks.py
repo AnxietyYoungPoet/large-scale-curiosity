@@ -168,3 +168,42 @@ class JustPixels(FeatureExtractor):
 
     def get_loss(self):
         return tf.zeros((), dtype=tf.float32)
+
+
+class IBFeature(FeatureExtractor):
+    def __init__(self, policy, features_shared_with_policy, feat_dim=None, layernormalize=None, beta=0.2, scope='IB_feature'):
+        super(IBFeature, self).__init__(scope=scope, policy=policy,
+                                        features_shared_with_policy=features_shared_with_policy,
+                                        feat_dim=feat_dim, layernormalize=layernormalize)
+        self.beta = beta
+        self.features = tf.split(self.features, 2, -1)[0]
+        self.next_features = tf.split(self.next_features, 2, -1)[0]
+
+    def get_features(self, x, reuse):
+        nl = tf.nn.leaky_relu
+        x_has_timesteps = (x.get_shape().ndims == 5)
+        if x_has_timesteps:
+            sh = tf.shape(x)
+            x = flatten_two_dims(x)
+        with tf.variable_scope(self.scope + '_features', reuse=reuse):
+            x = (tf.to_float(x) - self.ob_mean) / self.ob_std
+            x = small_convnet(x, nl=nl, feat_dim=2 * self.feat_dim, last_nl=None, layernormalize=False)
+        if x_has_timesteps:
+            x = unflatten_first_dim(x, sh)
+        return x
+
+    def get_loss(self):
+        with tf.variable_scope(self.scope):
+            f_mean, f_logvar = tf.split(self.features, 2, -1)
+            next_f_mean, next_f_logvar = tf.split(self.next_features, 2, -1)
+            eps = tf.random_normal(shape=tf.shape(f_mean))
+            f_sample = f_mean + tf.exp(f_logvar / 2) * eps
+            next_f_sample = next_f_mean + tf.exp(next_f_logvar / 2) * eps
+            kl_loss = self.beta * tf.reduce_sum(tf.exp(f_logvar) + f_mean**2 - 1. - f_logvar, [-1])
+            f_sample = flatten_two_dims(f_sample)
+            a = tf.one_hot(self.ac, self.ac_space.n, axis=2)
+            x = tf.concat([self.f_sample, a], 2)
+            x = fc(x, units=self.policy.hidsize, activation=activ)
+            x = fc(x, units=self.feat_dim, activation=None)
+            dynamic_loss = tf.reduce_mean((x - tf.stop_gradient(next_f_sample) ** 2, -1))
+            return kl_loss + dynamic_loss
