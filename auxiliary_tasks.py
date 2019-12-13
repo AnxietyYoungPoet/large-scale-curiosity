@@ -171,7 +171,7 @@ class JustPixels(FeatureExtractor):
 
 
 class IBFeature(FeatureExtractor):
-    def __init__(self, policy, features_shared_with_policy, feat_dim=None, layernormalize=None, beta=0.2, scope='IB_feature'):
+    def __init__(self, policy, features_shared_with_policy, feat_dim=None, layernormalize=None, beta=0.05, scope='IB_feature'):
         self.beta = beta
         super(IBFeature, self).__init__(scope=scope, policy=policy,
                                         features_shared_with_policy=features_shared_with_policy,
@@ -196,17 +196,22 @@ class IBFeature(FeatureExtractor):
         with tf.variable_scope(self.scope):
             f_mean, f_logvar = tf.split(self.features, 2, -1)
             next_f_mean, next_f_logvar = tf.split(self.next_features, 2, -1)
-            eps = tf.random_normal(shape=tf.shape(f_mean))
-            f_sample = f_mean + tf.exp(f_logvar / 2) * eps
-            next_f_sample = next_f_mean + tf.exp(next_f_logvar / 2) * eps
-            kl_loss = self.beta * tf.reduce_sum(tf.exp(f_logvar) + f_mean**2 - 1. - f_logvar, [-1])
-            print(kl_loss.shape)
-            a = tf.one_hot(self.ac, self.ac_space.n, axis=2)
-            x = tf.concat([f_sample, a], 2)
+            f_scale = tf.nn.softplus(f_logvar)
+            f_distribution = tf.distributions.Normal(loc=f_mean, scale=f_scale)
+            next_f_scale = tf.nn.softplus(next_f_logvar)
+            next_f_distribution = tf.distributions.Normal(loc=next_f_mean, scale=next_f_scale)
+            sh = tf.shape(f_mean)
+            prior = tf.distributions.Normal(loc=tf.zeros(sh), scale=tf.ones(sh))
+            kl_loss = tf.distributions.kl_divergence(f_distribution, prior)
+            f_sample = f_distribution.sample()
+            ac = tf.one_hot(self.ac, self.ac_space.n, axis=2)
+            x = tf.concat([f_sample, ac], 2)
             sh = tf.shape(x)
             x = flatten_two_dims(x)
             x = fc(x, units=self.policy.hidsize, activation=activ)
-            x = fc(x, units=self.feat_dim, activation=None)
+            x = fc(x, units=2 * self.feat_dim, activation=None)
             x = unflatten_first_dim(x, sh)
-            dynamic_loss = tf.reduce_mean((x - tf.stop_gradient(next_f_sample)) ** 2, -1)
-            return kl_loss + dynamic_loss
+            mean, logvar = tf.split(x, 2, -1)
+            scale = tf.nn.softplus(logvar)
+            post_distribution = tf.distributions.Normal(loc=mean, scale=scale)
+            return self.beta * kl_loss + tf.distributions.kl_divergence(next_f_distribution, post_distribution)
